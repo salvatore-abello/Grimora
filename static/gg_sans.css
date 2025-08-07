@@ -1,0 +1,17 @@
+@font-face {
+    font-family: 'gg sans';
+    src: url(/static/gg_sans_regular.ttf);
+    font-weight: normal;
+}
+
+@font-face {
+    font-family: 'gg sans';
+    src: url(/static/gg_sans_semibold.ttf);
+    font-weight: bold;
+}
+/*
+@font-face {
+    font-family: 'gg sans';
+    src: url(/static/gg_sans_bold.ttf);
+    font-weight: bolder;
+}*/

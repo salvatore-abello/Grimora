@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test title</title>
+    <link rel="stylesheet" href="/static/gg_sans.css">
+    <link rel="stylesheet" href="/static/transcript.css">
+</head>
+<body>
+    {% import 'transcript_contents.html' as tc %}
+    <ol id="channel-area">
+        {% for channel in transcript.channels %}
+            {{ tc.channel(channel) }}
+        {% endfor %}
+    </ol>
+    <ol id="msg-area">
+        {% if info == true %}
+            {{ tc.info(transcript) }}
+        {% else %}
+            {% for message in messages %}
+                {{ tc.message(message) }}
+            {% endfor %}
+            {{ tc.message_eof() }}
+        {% endif %}
+    </ol>
+</body>
+</html>

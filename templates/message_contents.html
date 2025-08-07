@@ -1,0 +1,60 @@
+
+{% macro text(cnt) -%}
+    <div class="msg-text {% if cnt.onlytwemoji %}only-twemoji{% endif %}">{{ cnt.text }}</div>
+{%- endmacro %}
+
+{% macro attachment(cnt) -%}
+    <a class="msg-attachment" href="{{ cnt.url }}" target="_blank">
+        <img class="msg-attachment-icon" src="{{ cnt.icon }}">
+        <div>
+            <p class="msg-attachment-name">{{ cnt.filename }}</p>
+            <p class="msg-attachment-size">{{ cnt.size }}</p>
+        </div>
+    </a>
+{%- endmacro %}
+
+{% macro error(cnt) -%}
+    <div class="msg-error">{{ cnt.text }}</div>
+{%- endmacro %}
+
+{% macro image(cnt) -%}
+    <div class="msg-img">
+        <a href="{{ cnt.url }}" target="_blank">
+            <img src="{{ cnt.url }}">
+        </a>
+    </div>
+{%- endmacro %}
+
+{% macro video(cnt) -%}
+    <video class="msg-video" {options}>
+        <source src="{{ cnt.url }}" type="{{ cnt.content_type }}">
+    </video>
+{%- endmacro %}
+
+{% macro reaction(rct) -%}
+    <span class="reaction"><img src="{{ rct.url }}">{{ rct.amount }}</span>
+{%- endmacro %}
+
+{% macro content(cnt) -%}
+    {% if cnt.__class__.__name__ == "MessageContentText" %}
+        {{ text(cnt) }}
+    {% elif cnt.__class__.__name__ == "MessageContentImage" %}
+        {{ image(cnt) }}
+    {% elif cnt.__class__.__name__ == "MessageContentVideo" %}
+        {{ video(cnt) }}
+    {% elif cnt.__class__.__name__ == "MessageContentAttachment" %}
+        {{ attachment(cnt) }}
+    {% endif %}
+{%- endmacro %}
+
+{% macro reply(rpy) -%}
+    <div class="reply">
+        <img class="reply-avatar" src="{{ rpy.avatar }}">
+        <span class="reply-username">{{ rpy.author }}</span>
+        <span class="reply-text">{{ rpy.text }}</span>
+    </div>
+{%- endmacro %}
+
+{% macro reply_line() -%}
+    <img class="reply-line" src="/static/reply_line.svg">
+{%- endmacro %}

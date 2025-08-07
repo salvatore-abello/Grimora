@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="/static/gg_sans.css">
+    <link rel="stylesheet" href="/static/upload.css">
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="title">
+            <h1>Upload</h1>
+            <h2>Raise your channels from the dead</h2>
+        </div>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <label for="name">What's the name of this transcript?</label>
+            <input type="text" name="name" id="name">
+            
+            <label for="description">And what is it about?</label>
+            <textarea rows="4" type="text" name="description" id="description"></textarea>
+            
+            <label for="name">Tell me about its contents</label>
+            <input type="file" name="files" id="file" multiple>
+
+            <input type="submit" value="Create transcript">
+        </form>
+    </div>
+</body>
+</html>
