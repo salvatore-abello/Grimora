@@ -1,65 +1,112 @@
 {% import 'message_contents.html' as mc %}
 
 {% macro info(trs) -%}
-    <div class="transcript-info">
-        <div class="times">
-            <span class="upload-time">Added on {{ trs.added.strftime("%d/%m/%Y") }}</span>
-            <span class="archive-time">Records from {{ trs.message_start.strftime("%d/%m/%Y") }} to {{ trs.message_end.strftime("%d/%m/%Y") }}</span>
+    <section class="channel-intro">
+        <div class="channel-intro-glyph">#</div>
+        <h2>{{ trs.name | e }}</h2>
+        <p>{{ (trs.description if trs.description else "This archive is mounted from ./transcripts. Pick a channel from the left or search the transcript from the header.") | e }}</p>
+        <div class="channel-intro-meta">
+            <span>{{ trs.info.channel_count }} channels</span>
+            <span>{{ trs.info.message_count }} messages</span>
+            <span>{{ trs.message_start.strftime("%-d %b %Y") }} to {{ trs.message_end.strftime("%-d %b %Y") }}</span>
+            {% if trs.info.part_count > 1 %}
+                <span>{{ trs.info.part_count }} parts</span>
+            {% endif %}
         </div>
-        <h1>{{ trs.name }}</h1>
-        <span class="description">
-            {{ trs.description }}
-        </span>
-        <div class="buttons">
-            <a href="/">
-                Back
-            </a>
-            <a href="/notimplemented">
-                Edit
-            </a>
-        </div>
-    </div>
+
+        {% if trs.channels %}
+            <div class="channel-intro-section">
+                <div class="channel-group-label channel-intro-label">Channels</div>
+                <div class="channel-intro-list">
+                    {% for channel in trs.channels[:12] %}
+                        <a class="channel-intro-link" href="{{ channel.url }}">
+                            <span class="channel-intro-link-symbol">#</span>
+                            <span>{{ channel.name | e }}</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </section>
 {%- endmacro %}
 
-{% macro channel(chnl) -%}
+{% macro channel(chnl, selected_channel_id = none) -%}
     <li class="channel-wrapper">
-        <a class="channel-container" href="{{ chnl.url }}">
-            <svg class="channel-icon" aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path fill="#7B7C83" fill-rule="evenodd" d="M10.99 3.16A1 1 0 1 0 9 2.84L8.15 8H4a1 1 0 0 0 0 2h3.82l-.67 4H3a1 1 0 1 0 0 2h3.82l-.8 4.84a1 1 0 0 0 1.97.32L8.85 16h4.97l-.8 4.84a1 1 0 0 0 1.97.32l.86-5.16H20a1 1 0 1 0 0-2h-3.82l.67-4H21a1 1 0 1 0 0-2h-3.82l.8-4.84a1 1 0 1 0-1.97-.32L15.15 8h-4.97l.8-4.84ZM14.15 14l.67-4H9.85l-.67 4h4.97Z" clip-rule="evenodd" class=""></path></svg>
-            <span class="channel-name">{{ chnl.name }}</span>
+        <a class="channel-container {% if chnl.id == selected_channel_id %}active{% endif %}" href="{{ chnl.url }}">
+            <span class="channel-symbol">#</span>
+            <span class="channel-name">{{ chnl.name | e }}</span>
         </a>
     </li>
 {%- endmacro %}
 
-{% macro message_full(msg) -%}
-    <li class="msg-wrapper">
-        <div class="message-side-container">
-            {% if msg.reply is not none %}
-                {{ mc.reply_line() }}
+{% macro search_results(query, results) -%}
+    <section class="search-panel">
+        <div class="search-summary">
+            {% if query %}
+                <h2>Search results</h2>
+                <p>{{ results|length }} matches for "{{ query | e }}"</p>
+            {% else %}
+                <h2>Search this transcript</h2>
+                <p>Search by user, channel, message text, reply text, or attachment name.</p>
             {% endif %}
+        </div>
+
+        {% if results %}
+            <ol class="search-hit-list">
+                {% for hit in results %}
+                    <li>
+                        <a class="search-hit" href="{{ hit.url }}">
+                            <img class="avatar" src="{{ hit.avatar }}">
+                            <div class="search-hit-body">
+                                <div class="search-hit-meta">
+                                    <span class="search-hit-author">{{ hit.author_html | safe }}</span>
+                                    <span class="search-hit-context">in #{{ hit.channel_html | safe }}</span>
+                                    <span class="search-hit-date">{{ hit.timestamp.strftime("%-d %b %Y %-I:%M %p") }}</span>
+                                </div>
+                                <p class="search-hit-excerpt">{{ hit.excerpt_html | safe }}</p>
+                            </div>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ol>
+        {% elif query %}
+            <div class="search-empty">
+                <h3>No matches found</h3>
+                <p>Try a shorter term or a different username, channel name, or phrase.</p>
+            </div>
+        {% endif %}
+    </section>
+{%- endmacro %}
+
+{% macro message_full(msg) -%}
+    <li class="msg-wrapper" id="{{ msg.anchor }}">
+        <div class="message-side-container">
             <img class="avatar" src="{{ msg.avatar }}">
         </div>
         <div class="msg-container">
             {% if msg.reply is not none %}
                 {{ mc.reply(msg.reply) }}
             {% endif %}
-            <div>
-                <span class="username">{{ msg.author }}</span>
+            <div class="message-meta-row">
+                <span class="username">{{ msg.author | e }}</span>
                 <span class="date">{{ msg.timestamp.strftime("%-d/%m/%Y %-I:%M %p") }}</span>
             </div>
             {% for content in msg.content %}
                 {{ mc.content(content) }}
             {% endfor %}
-            <div class="reactions">
-                {%- for reaction in msg.reactions -%}
-                    {{ mc.reaction(reaction) }}
-                {%- endfor -%}
-            </div>
+            {% if msg.reactions %}
+                <div class="reactions">
+                    {%- for reaction in msg.reactions -%}
+                        {{ mc.reaction(reaction) }}
+                    {%- endfor -%}
+                </div>
+            {% endif %}
         </div>
     </li>
 {%- endmacro %}
 
 {% macro message_continue(msg) -%}
-    <li class="msg-wrapper msg-continuation">
+    <li class="msg-wrapper msg-continuation" id="{{ msg.anchor }}">
         <div class="message-side-container">
             <span class="side-date">{{ msg.timestamp.strftime("%-I:%M %p") }}</span>
         </div>
@@ -67,11 +114,13 @@
             {% for content in msg.content %}
                 {{ mc.content(content) }}
             {% endfor %}
-            <div class="reactions">
-                {%- for reaction in msg.reactions -%}
-                    {{ mc.reaction(reaction) }}
-                {%- endfor -%}
-            </div>
+            {% if msg.reactions %}
+                <div class="reactions">
+                    {%- for reaction in msg.reactions -%}
+                        {{ mc.reaction(reaction) }}
+                    {%- endfor -%}
+                </div>
+            {% endif %}
         </div>
     </li>
 {%- endmacro %}
@@ -85,9 +134,7 @@
 {%- endmacro %}
 
 {% macro message_eof() -%}
-    <li class="msg-wrapper">
-        <div class="msg-meta">
-            End of file :3
-        </div>
+    <li class="msg-divider">
+        <span>End of archived messages</span>
     </li>
 {%- endmacro %}

@@ -7,7 +7,7 @@
     <a class="msg-attachment" href="{{ cnt.url }}" target="_blank">
         <img class="msg-attachment-icon" src="{{ cnt.icon }}">
         <div>
-            <p class="msg-attachment-name">{{ cnt.filename }}</p>
+            <p class="msg-attachment-name">{{ cnt.filename | e }}</p>
             <p class="msg-attachment-size">{{ cnt.size }}</p>
         </div>
     </a>
@@ -20,15 +20,44 @@
 {% macro image(cnt) -%}
     <div class="msg-img">
         <a href="{{ cnt.url }}" target="_blank">
-            <img src="{{ cnt.url }}">
+            <img src="{{ cnt.url }}" loading="lazy">
         </a>
     </div>
 {%- endmacro %}
 
 {% macro video(cnt) -%}
-    <video class="msg-video" {options}>
+    <video class="msg-video" controls preload="metadata">
         <source src="{{ cnt.url }}" type="{{ cnt.content_type }}">
     </video>
+{%- endmacro %}
+
+{% macro gif_embed(cnt) -%}
+    <a
+        class="msg-gif-embed"
+        href="{{ cnt.original_url }}"
+        target="_blank"
+        rel="noreferrer noopener"
+        {% if cnt.width and cnt.height %}
+            style="--embed-width: {{ cnt.width }}; --embed-height: {{ cnt.height }};"
+        {% endif %}
+    >
+        <video
+            class="msg-gif-embed-video"
+            autoplay
+            loop
+            muted
+            playsinline
+            preload="metadata"
+            {% if cnt.poster_url %}poster="{{ cnt.poster_url }}"{% endif %}
+            {% if cnt.width %}width="{{ cnt.width }}"{% endif %}
+            {% if cnt.height %}height="{{ cnt.height }}"{% endif %}
+        >
+            <source src="{{ cnt.url }}" type="video/mp4">
+        </video>
+        {% if cnt.provider %}
+            <span class="msg-gif-embed-provider">{{ cnt.provider | e }}</span>
+        {% endif %}
+    </a>
 {%- endmacro %}
 
 {% macro reaction(rct) -%}
@@ -42,6 +71,8 @@
         {{ image(cnt) }}
     {% elif cnt.__class__.__name__ == "MessageContentVideo" %}
         {{ video(cnt) }}
+    {% elif cnt.__class__.__name__ == "MessageContentGifEmbed" %}
+        {{ gif_embed(cnt) }}
     {% elif cnt.__class__.__name__ == "MessageContentAttachment" %}
         {{ attachment(cnt) }}
     {% endif %}
@@ -49,12 +80,9 @@
 
 {% macro reply(rpy) -%}
     <div class="reply">
+        <span class="reply-line" aria-hidden="true"></span>
         <img class="reply-avatar" src="{{ rpy.avatar }}">
-        <span class="reply-username">{{ rpy.author }}</span>
+        <span class="reply-username">{{ rpy.author | e }}</span>
         <span class="reply-text">{{ rpy.text }}</span>
     </div>
-{%- endmacro %}
-
-{% macro reply_line() -%}
-    <img class="reply-line" src="/static/reply_line.svg">
 {%- endmacro %}

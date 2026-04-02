@@ -14,9 +14,10 @@ CACHE_URL               = "/cache/"
 
 TRANSCRIPTS_DIRECTORY   = "./transcripts/"
 TRANSCRIPTS_URL         = "/transcripts/"
+TRANSCRIPTS_METADATA    = os.path.join(TRANSCRIPTS_DIRECTORY, ".grimora-metadata.json")
 
 FALLBACK_AVATAR         = "file:./cache/defaults/default_avatar.webp"
-FALLBACK_REACTION       = "file:./cache/defaults/default_rection.webp"
+FALLBACK_REACTION       = "file:./cache/defaults/default_reaction.webp"
 
 DATABASE_URL            = "sqlite:///./transcripts.db"
 

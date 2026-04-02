@@ -2,14 +2,16 @@ import os
 from typing import Optional
 from datetime import datetime, timedelta
 import json
+from urllib.parse import urlparse
 
 from .config import FALLBACK_AVATAR, FALLBACK_REACTION
 from .cache import cache_resource
 from .models import *
 from .text import twemoji_url
+from .utils import stable_slug
 
 def parse_name(raw_element) -> str:
-    return raw_element["global_name"] if raw_element["global_name"] else raw_element["username"]
+    return raw_element.get("global_name") or raw_element["username"]
 
 def parse_mentions_map(raw_element) -> dict[str, str]:
     mentions_map = { raw_mention["id"]: '@' + parse_name(raw_mention) for raw_mention in raw_element["mentions"] }
@@ -34,23 +36,69 @@ def parse_avatar(raw_element) -> str:
             sources=sources
         )
 
+def _cached_embed_url(channel_id: str, message_id: str, embed_index: int, variant: str, source_url: str) -> str:
+
+    parsed_url = urlparse(source_url)
+    filename = os.path.basename(parsed_url.path) or f"{variant}-{embed_index}"
+    return cache_resource(
+        path=f"embeds/{channel_id}/{message_id}/{embed_index}-{variant}-{filename}",
+        sources=[source_url],
+    )
+
+def parse_embeds(raw_element) -> list[MessageContent]:
+
+    content = []
+    channel_id = raw_element["channel_id"]
+    message_id = parse_message_id(raw_element)
+
+    for embed_index, raw_embed in enumerate(raw_element.get("embeds") or []):
+        embed_type = raw_embed.get("type")
+
+        if embed_type != "gifv":
+            continue
+
+        video_url = raw_embed.get("video", {}).get("url")
+        if not video_url:
+            continue
+
+        poster_source = raw_embed.get("thumbnail", {}).get("proxy_url") or raw_embed.get("thumbnail", {}).get("url")
+        poster_url = None
+        if poster_source:
+            poster_url = _cached_embed_url(channel_id, message_id, embed_index, "poster", poster_source)
+
+        content.append(MessageContentGifEmbed(
+            url=_cached_embed_url(channel_id, message_id, embed_index, "video", video_url),
+            original_url=raw_embed.get("url") or video_url,
+            poster_url=poster_url,
+            provider=(raw_embed.get("provider", {}) or {}).get("name", ""),
+            width=raw_embed.get("video", {}).get("width"),
+            height=raw_embed.get("video", {}).get("height"),
+        ))
+
+    return content
+
 def parse_content(raw_element, path: str) -> list[MessageContent]:
 
     content = []
+    raw_content = raw_element["content"]
+    embeds = parse_embeds(raw_element)
+    embed_urls = {
+        raw_embed.get("url", "").strip()
+        for raw_embed in raw_element.get("embeds") or []
+        if raw_embed.get("type") == "gifv" and raw_embed.get("url")
+    }
 
-    if raw_element["content"]:
+    if raw_content and raw_content.strip() not in embed_urls:
         content.append(MessageContentText(
-            text=raw_element["content"],
+            text=raw_content,
             mentions_map=parse_mentions_map(raw_element)))
 
     channel_id = raw_element["channel_id"]
 
     for raw_attachment in raw_element["attachments"]:
-        
-        #print(raw_attachment)
-
         attachment_id = raw_attachment["id"]
         attachment_filename = raw_attachment["filename"]
+        content_type = raw_attachment.get("content_type") or ""
 
         url = cache_resource(
             path=f"attachments/{channel_id}/{attachment_id}/{attachment_filename}",
@@ -59,15 +107,23 @@ def parse_content(raw_element, path: str) -> list[MessageContent]:
             ]
         )
 
-        if raw_attachment["content_type"].startswith("image/"):
+        if content_type.startswith("image/"):
             content.append(MessageContentImage(url=url))
+        elif content_type.startswith("video/"):
+            content.append(MessageContentVideo(
+                url=url,
+                filename=attachment_filename,
+                content_type=content_type,
+            ))
         else:
             content.append(MessageContentAttachment(
                 url=url,
                 filename=raw_attachment["filename"],
                 size=raw_attachment["size"],
-                content_type=raw_attachment["content_type"]
+                content_type=content_type
                 ))
+
+    content.extend(embeds)
             
     return content
 
@@ -123,6 +179,7 @@ def parse_fullmessage(raw_element, path: str) -> MessageFull:
     avatar = parse_avatar(raw_element)
 
     message = MessageFull(
+        id=parse_message_id(raw_element),
         reply=parse_reply(raw_element),
         author=author,
         avatar=avatar,
@@ -136,6 +193,9 @@ def parse_fullmessage(raw_element, path: str) -> MessageFull:
 def parse_continuemessage(raw_element, path: str) -> MessageContinuation:
 
     message = MessageContinuation(
+        id=parse_message_id(raw_element),
+        author=parse_name(raw_element["author"]),
+        avatar=parse_avatar(raw_element),
         timestamp=parse_timestamp(raw_element),
         content=parse_content(raw_element, path),
         reactions=parse_reactions(raw_element),
@@ -143,7 +203,18 @@ def parse_continuemessage(raw_element, path: str) -> MessageContinuation:
 
     return message
 
-def parse_channel(path: str) -> Channel:
+
+def parse_message_id(raw_element) -> str:
+    raw_message_id = raw_element.get("id")
+    if raw_message_id:
+        return str(raw_message_id)
+
+    return stable_slug(
+        f"{raw_element['author']['id']}:{raw_element['timestamp']}:{raw_element['content']}",
+        prefix="message",
+    )
+
+def parse_channel(path: str, transcript_id: Optional[str] = None) -> Channel:
 
     assert os.path.isfile(path), "The path provided is not a file"
 
@@ -171,7 +242,7 @@ def parse_channel(path: str) -> Channel:
 
         timestamp = parse_timestamp(raw_element)
         if last_fullmessage_author == raw_element["author"]["id"] and \
-            (last_fullmessage_timestamp - timestamp) < timedelta(minutes=5) and \
+            (timestamp - last_fullmessage_timestamp) < timedelta(minutes=5) and \
             raw_element["message_reference"] is None:
             messages.append(parse_continuemessage(raw_element, path_dir))
             continue
@@ -182,19 +253,28 @@ def parse_channel(path: str) -> Channel:
 
     channel = Channel(
         name=channel_name,
-        messages=messages
+        messages=messages,
+        id=stable_slug(f"{transcript_id or channel_name}:{channel_name}", prefix="channel"),
     )
 
     return channel
 
-def parse_transcript(path: str, name: Optional[str] = None, description: str = "") -> Transcript:
+def parse_transcript(
+    path: str,
+    name: Optional[str] = None,
+    description: str = "",
+    transcript_id: Optional[str] = None,
+    added: Optional[datetime] = None,
+) -> Transcript:
 
     assert os.path.isdir(path), "The path provided is not a directory"
 
     transcript_name = os.path.basename(path)
     channels = []
 
-    for directory in os.listdir(path):
+    transcript_identifier = transcript_id or stable_slug(transcript_name, prefix="transcript")
+
+    for directory in sorted(os.listdir(path)):
 
         directory_path = os.path.join(path, directory)
         if not os.path.isdir(directory_path):
@@ -206,9 +286,12 @@ def parse_transcript(path: str, name: Optional[str] = None, description: str = "
             print(f"[WARN] Directory {directory_path} doesnt have a json file")
             continue
         
-        channels.append(parse_channel(channel_path))
+        channels.append(parse_channel(channel_path, transcript_id=transcript_identifier))
     
     return Transcript(
         name=name if (name is not None) else transcript_name,
         description=description,
-        channels=channels)
+        channels=channels,
+        id=transcript_identifier,
+        added=added,
+    )

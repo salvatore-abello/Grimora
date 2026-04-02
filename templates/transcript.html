@@ -3,26 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test title</title>
+    <title>{{ transcript.name | e }} | Grimora</title>
     <link rel="stylesheet" href="/static/gg_sans.css">
+    <style>{{ codehilite_css | safe }}</style>
     <link rel="stylesheet" href="/static/transcript.css">
 </head>
 <body>
     {% import 'transcript_contents.html' as tc %}
-    <ol id="channel-area">
-        {% for channel in transcript.channels %}
-            {{ tc.channel(channel) }}
-        {% endfor %}
-    </ol>
-    <ol id="msg-area">
-        {% if info == true %}
-            {{ tc.info(transcript) }}
-        {% else %}
-            {% for message in messages %}
-                {{ tc.message(message) }}
+    <div class="transcript-shell">
+        <aside class="guild-rail">
+            {% for info in all_transcripts %}
+                <a class="guild-button {% if info.id == transcript.id %}active{% endif %}" href="/transcripts/{{ info.id }}" title="{{ info.name | e }}">
+                    {{ (info.name[:2] if info.name else "#") | upper }}
+                </a>
             {% endfor %}
-            {{ tc.message_eof() }}
-        {% endif %}
-    </ol>
+            {% if all_transcripts %}
+                <div class="guild-separator"></div>
+            {% endif %}
+            <a class="guild-button guild-button-upload" href="/upload" title="Upload">+</a>
+        </aside>
+
+        <aside class="channel-sidebar">
+            <div class="server-header" title="{{ transcript.name | e }}">{{ transcript.name | e }}</div>
+            <nav class="sidebar-nav">
+                <a class="sidebar-nav-item {% if view_mode == 'info' %}active{% endif %}" href="{{ transcript.url }}">
+                    <span class="sidebar-nav-symbol">@</span>
+                    <span>overview</span>
+                </a>
+                <a class="sidebar-nav-item {% if view_mode == 'search' %}active{% endif %}" href="{{ transcript.url }}/search">
+                    <span class="sidebar-nav-symbol">@</span>
+                    <span>search</span>
+                </a>
+            </nav>
+
+            <div class="channel-group-label">Text Channels</div>
+            <ol class="channel-list">
+                {% for channel in transcript.channels %}
+                    {{ tc.channel(channel, selected_channel_id) }}
+                {% endfor %}
+            </ol>
+        </aside>
+
+        <main class="chat-panel">
+            <header class="chat-header">
+                <div class="chat-header-title">
+                    <span class="hash">#</span>
+                    {% if view_mode == "channel" %}
+                        <h1>{{ current_channel.name | e }}</h1>
+                    {% elif view_mode == "search" %}
+                        <h1>search</h1>
+                        <span class="header-context">{{ transcript.name | e }}</span>
+                    {% else %}
+                        <h1>overview</h1>
+                        <span class="header-context">{{ transcript.name | e }}</span>
+                    {% endif %}
+                </div>
+
+                <form class="transcript-search" action="{{ transcript.url }}/search" method="get">
+                    <input
+                        type="text"
+                        name="query"
+                        value="{{ transcript_query | e }}"
+                        placeholder="Search users, messages, attachments"
+                    >
+                </form>
+            </header>
+
+            <div class="chat-scroller">
+                {% if view_mode == "info" %}
+                    {{ tc.info(transcript) }}
+                {% elif view_mode == "search" %}
+                    {{ tc.search_results(transcript_query, search_results) }}
+                {% else %}
+                    <ol class="message-list">
+                        {% for message in messages %}
+                            {{ tc.message(message) }}
+                        {% endfor %}
+                        {{ tc.message_eof() }}
+                    </ol>
+                {% endif %}
+            </div>
+        </main>
+    </div>
 </body>
 </html>

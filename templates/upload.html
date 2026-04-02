@@ -3,28 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Upload | Grimora</title>
     <link rel="stylesheet" href="/static/gg_sans.css">
+    <link rel="stylesheet" href="/static/main.css">
     <link rel="stylesheet" href="/static/upload.css">
 </head>
 <body>
-    <div class="main-wrapper">
-        <div class="title">
-            <h1>Upload</h1>
-            <h2>Raise your channels from the dead</h2>
-        </div>
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            <label for="name">What's the name of this transcript?</label>
-            <input type="text" name="name" id="name">
-            
-            <label for="description">And what is it about?</label>
-            <textarea rows="4" type="text" name="description" id="description"></textarea>
-            
-            <label for="name">Tell me about its contents</label>
-            <input type="file" name="files" id="file" multiple>
+    <div class="app-shell upload-shell">
+        <aside class="guild-rail">
+            {% for transcript in all_transcripts %}
+                <a class="guild-button guild-button-transcript" href="{{ transcripts_url }}{{ transcript.id }}" title="{{ transcript.name | e }}">
+                    {{ (transcript.name[:2] if transcript.name else "#") | upper }}
+                </a>
+            {% endfor %}
+            {% if all_transcripts %}
+                <div class="guild-separator"></div>
+            {% endif %}
+            <a class="guild-button guild-button-upload active" href="/upload" title="Upload">+</a>
+        </aside>
 
-            <input type="submit" value="Create transcript">
-        </form>
+        <aside class="library-sidebar upload-sidebar">
+            <div class="sidebar-header">Transcript Tools</div>
+
+            <div class="sidebar-section-label">Actions</div>
+            <nav class="upload-sidebar-nav">
+                <a class="sidebar-item active" href="/upload">
+                    <span class="sidebar-avatar upload-sidebar-icon">+</span>
+                    <span class="sidebar-copy">
+                        <span class="sidebar-name">Upload archive</span>
+                        <span class="sidebar-meta">Add one transcript at a time</span>
+                    </span>
+                </a>
+            </nav>
+
+            <div class="sidebar-section-label">Rules</div>
+            <div class="upload-rule-list">
+                <p>Use one <code>.zip</code> file or all <code>.zip.partN</code> files belonging to one archive.</p>
+                <p>Name and description are optional. If empty, the archive filename is used.</p>
+                <p>Uploaded archives are mounted into <code>./transcripts</code> immediately.</p>
+            </div>
+
+            <div class="sidebar-section-label">Mounted transcripts</div>
+            <nav class="sidebar-list upload-mounted-list">
+                {% for transcript in all_transcripts %}
+                    <a class="sidebar-item" href="{{ transcripts_url }}{{ transcript.id }}">
+                        <span class="sidebar-avatar">{{ (transcript.name[:1] if transcript.name else "#") | upper }}</span>
+                        <span class="sidebar-copy">
+                            <span class="sidebar-name">{{ transcript.name | e }}</span>
+                            <span class="sidebar-meta">{{ transcript.channel_count }} channels · {{ transcript.message_count }} messages</span>
+                        </span>
+                    </a>
+                {% else %}
+                    <div class="sidebar-empty">No archives mounted yet.</div>
+                {% endfor %}
+            </nav>
+        </aside>
+
+        <main class="library-main upload-main">
+            <header class="topbar">
+                <div class="topbar-title">
+                    <span class="topbar-hash">+</span>
+                    <h1>upload</h1>
+                </div>
+                <div class="topbar-actions">
+                    <span class="topbar-topic">One <code>.zip</code> or one split <code>.zip.partN</code> archive per upload.</span>
+                </div>
+            </header>
+
+            <section class="content-area upload-content">
+                <div class="upload-page">
+                    <div class="upload-copy">
+                        <h2>Upload Archive</h2>
+                        <p>Mount a Discord export into the viewer without leaving the app shell.</p>
+                    </div>
+
+                    <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+                        <section class="upload-section">
+                            <label class="upload-label" for="name">Display Name</label>
+                            <p class="upload-hint">Optional. Overrides the archive filename in the sidebar and guild rail.</p>
+                            <input class="upload-input" type="text" name="name" id="name" placeholder="Example: Codegate Finals">
+                        </section>
+
+                        <section class="upload-section">
+                            <label class="upload-label" for="description">Description</label>
+                            <p class="upload-hint">Optional. Short context for search results and the transcript overview.</p>
+                            <textarea class="upload-input upload-textarea" rows="4" name="description" id="description" placeholder="Challenge archive, event chat, internal notes..."></textarea>
+                        </section>
+
+                        <section class="upload-section">
+                            <label class="upload-label" for="files">Archive Files</label>
+                            <p class="upload-hint">Select one regular <code>.zip</code> or every <code>.zip.partN</code> piece for one split archive.</p>
+                            <div class="upload-file-picker">
+                                <label class="upload-file-button" for="files">Choose files</label>
+                                <span class="upload-file-caption" id="upload-file-caption">No files selected</span>
+                            </div>
+                            <input class="upload-file-input" type="file" name="files" id="files" multiple required>
+                            <ul class="upload-file-list" id="upload-file-list" hidden></ul>
+                        </section>
+
+                        <div class="upload-actions">
+                            <button class="upload-submit" type="submit">Upload transcript</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
     </div>
+
+    <script>
+        const input = document.getElementById("files");
+        const caption = document.getElementById("upload-file-caption");
+        const list = document.getElementById("upload-file-list");
+
+        function renderSelectedFiles() {
+            const files = Array.from(input.files || []);
+
+            if (files.length === 0) {
+                caption.textContent = "No files selected";
+                list.hidden = true;
+                list.replaceChildren();
+                return;
+            }
+
+            caption.textContent = files.length === 1 ? files[0].name : `${files.length} files selected`;
+            list.hidden = false;
+            list.replaceChildren(
+                ...files.map((file) => {
+                    const item = document.createElement("li");
+                    item.textContent = file.name;
+                    return item;
+                })
+            );
+        }
+
+        input.addEventListener("change", renderSelectedFiles);
+    </script>
 </body>
 </html>
