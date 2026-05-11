@@ -1,9 +1,12 @@
+import base64
+import binascii
 from pathlib import Path
+import secrets
 from typing import Annotated
 import shutil
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
@@ -21,7 +24,46 @@ config.jinja_env.globals["codehilite_css"] = codehilite_css()
 
 @app.on_event("startup")
 def on_startup():
+    config.validate_auth_configuration()
     archive_store.refresh()
+
+
+def unauthorized_response() -> PlainTextResponse:
+    return PlainTextResponse(
+        "Authentication required.",
+        status_code=401,
+        headers={"WWW-Authenticate": f'Basic realm="{config.AUTH_REALM}"'},
+    )
+
+
+def has_valid_basic_auth(request: Request) -> bool:
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.startswith("Basic "):
+        return False
+
+    try:
+        decoded = base64.b64decode(authorization.split(" ", 1)[1], validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError, binascii.Error):
+        return False
+
+    username, separator, password = decoded.partition(":")
+    if separator == "":
+        return False
+
+    expected_username = config.get_auth_username()
+    expected_password = config.get_auth_password()
+    return (
+        secrets.compare_digest(username, expected_username) and
+        secrets.compare_digest(password, expected_password)
+    )
+
+
+@app.middleware("http")
+async def require_basic_auth(request: Request, call_next):
+    if not has_valid_basic_auth(request):
+        return unauthorized_response()
+
+    return await call_next(request)
 
 
 def sort_infos(query: str):
